@@ -8,6 +8,14 @@ Author: Brian-Tinh Vu
 Date: 12/05/2025
 Dependencies: numpy, sigpy, scipy
 
+Citations:
+    Gradient delay methods based on:
+    1) Block KT, Uecker M. Simple method for adaptive gradient-delay compensation in radial MRI.
+       Proceedings of the 19th Annual Meeting of ISMRM, Montreal, Canada, 2011. p. 2816.
+    2) Rosenzweig S, Holme HCM, Uecker M. Simple auto-calibrated gradient delay estimation from 
+       few spokes using Radial Intersections (RING). Magn Reson Med. 2019;81(3):1898-1906.
+       doi: 10.1002/mrm.27506
+
 Quick Start:
     traj = trajGoldenAngle(N=128, n_spokes=360)
     calib_traj = trajCalibration(N=128, n_calib_pairs=32)
@@ -161,6 +169,9 @@ def estGradDelay(ksp_calib, traj_calib, thresh=0.1):
     """
     Estimate gradient delays from calibration data.
     
+    Based on Block & Uecker (ISMRM 2011) cross-correlation method for
+    parallel/antiparallel spoke analysis with ellipse model fitting.
+    
     Parameters
     ----------
     ksp_calib : np.ndarray
@@ -178,6 +189,7 @@ def estGradDelay(ksp_calib, traj_calib, thresh=0.1):
     Notes
     -----
     Uses cross-correlation of parallel/antiparallel spokes and least-squares fitting.
+    Related to RING method (Rosenzweig et al., MRM 2019) for ellipse parameter estimation.
     """
     n_ro = ksp_calib.shape[-1]
     n_calib_pairs = ksp_calib.shape[0]//2
@@ -245,6 +257,9 @@ def estGradDelay(ksp_calib, traj_calib, thresh=0.1):
 def shiftTrajectory(traj, shift_matrix):
     """
     Apply gradient delay correction to radial trajectory.
+    
+    Implements trajectory correction from Block & Uecker (ISMRM 2011) and
+    Rosenzweig et al. (MRM 2019) gradient delay compensation methods.
     
     Parameters
     ----------
