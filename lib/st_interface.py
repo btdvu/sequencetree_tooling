@@ -14,7 +14,6 @@ Quick Start:
 """
 
 import numpy as np
-import sigpy.plot as pl
 
 def get_pe_idxs_from_mask(mask, mode="2D"):
     """

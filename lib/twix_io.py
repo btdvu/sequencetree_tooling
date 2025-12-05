@@ -13,7 +13,7 @@ Quick Start:
     ksp = read_twix_from_cartesian_mask('measurement.dat', mask, n_prep=100)
 """
 import numpy as np
-from st_interface import get_pe_idxs_from_mask
+from lib.st_interface import get_pe_idxs_from_mask
 
 # TODO: add a safety check to see if there are any additional ADCs that were acquired that we did not read in
 def read_twix_siemens_XA(datfile, nviews):
