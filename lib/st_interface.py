@@ -9,13 +9,13 @@ Date: 11/08/2025
 Dependencies: numpy, sigpy
 
 Quick Start:
-    pe_indices = get_pe_idxs_from_mask(mask, mode="2D")
-    save_idxs_to_file('pe_lines.txt', pe_indices)
+    pe_indices = getPeIdxsFromMask(mask, mode="2D")
+    saveIdxsToFile('pe_lines.txt', pe_indices)
 """
 
 import numpy as np
 
-def get_pe_idxs_from_mask(mask, mode="2D"):
+def getPeIdxsFromMask(mask, mode="2D"):
     """
     Extract phase encoding indices from binary mask.
     
@@ -40,7 +40,7 @@ def get_pe_idxs_from_mask(mask, mode="2D"):
     Examples
     --------
     >>> mask = np.array([[0, 1], [1, 0]])
-    >>> get_pe_idxs_from_mask(mask, mode="2D")
+    >>> getPeIdxsFromMask(mask, mode="2D")
     array([0, 1])
     """
     if mode == "2D":
@@ -60,7 +60,7 @@ def get_pe_idxs_from_mask(mask, mode="2D"):
     else:
         raise ValueError(f"Invalid mode: {mode}. Must be '2D' or '3D'.")
 
-def save_idxs_to_file(file_path, int_array):
+def saveIdxsToFile(file_path, int_array):
     """
     Save integer indices to text file.
     
@@ -77,7 +77,7 @@ def save_idxs_to_file(file_path, int_array):
     
     Examples
     --------
-    >>> save_idxs_to_file("indices.txt", [1, 2, 3])
+    >>> saveIdxsToFile("indices.txt", [1, 2, 3])
     """
     with open(file_path, 'w') as f:
         for num in int_array:

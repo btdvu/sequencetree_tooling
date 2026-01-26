@@ -14,6 +14,7 @@ Quick Start:
 """
 
 import os
+import sys
 import numpy as np
 
 def readmda(fname, folder=os.getcwd(), dtype=np.double):

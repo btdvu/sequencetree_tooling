@@ -9,14 +9,14 @@ Date: 11/08/2025
 Dependencies: numpy
 
 Quick Start:
-    mask_2d = regular_undersampling((256, 256), accel=4.0, mode="2D")
-    mask_3d = regular_undersampling((128, 128), accel=8.0, mode="3D")
-    actual_accel = compute_accel(mask_2d)
+    mask_2d = regularUndersampling((256, 256), accel=4.0, mode="2D")
+    mask_3d = regularUndersampling((128, 128), accel=8.0, mode="3D")
+    actual_accel = computeAccel(mask_2d)
 """
 
 import numpy as np
 
-def regular_undersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_attempts=100):
+def regularUndersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_attempts=100):
     """
     Generate Cartesian undersampling masks for 2D/3D MRI acquisitions.
     
@@ -47,8 +47,8 @@ def regular_undersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_at
     
     Examples
     --------
-    >>> mask_2d = regular_undersampling((256, 256), accel=4.0, mode="2D")
-    >>> mask_3d = regular_undersampling((128, 128), accel=8.0, mode="3D")
+    >>> mask_2d = regularUndersampling((256, 256), accel=4.0, mode="2D")
+    >>> mask_3d = regularUndersampling((128, 128), accel=8.0, mode="3D")
     """
     if mode == "2D":
         # Extract dimensions for 2D Cartesian trajectory
@@ -81,7 +81,7 @@ def regular_undersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_at
             tmp_mask[sampled_idxs] = 1
 
             # Calculate actual acceleration achieved
-            actual_accel = compute_accel(tmp_mask)
+            actual_accel = computeAccel(tmp_mask)
 
             # Binary search: adjust spacing based on acceleration achieved
             if actual_accel < accel:
@@ -94,7 +94,7 @@ def regular_undersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_at
                 test_increment = 0.5 * (inc_lower_bound + inc_upper_bound)
 
             # Check if acceleration meets tolerance
-            isMetTolerance = np.abs(accel - compute_accel(tmp_mask)) < tol
+            isMetTolerance = np.abs(accel - computeAccel(tmp_mask)) < tol
 
         # Expand 1D PE mask to full 2D k-space mask
         mask = tmp_mask
@@ -126,7 +126,7 @@ def regular_undersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_at
         n_attempts = 0
 
         # Add golden-angle sampled points until acceleration target met
-        while (compute_accel(tmp_mask) > accel - tol) and (n_attempts < max_attempts) and (num_additional_PE > 0):
+        while (computeAccel(tmp_mask) > accel - tol) and (n_attempts < max_attempts) and (num_additional_PE > 0):
             # Generate golden-angle sequence
             golden_angle_idxs = np.arange(num_added_PE, num_added_PE + num_additional_PE)
             golden_angles = [(GA_y * i, GA_z * i) for i in golden_angle_idxs]
@@ -152,7 +152,7 @@ def regular_undersampling(img_shape, accel, calib=24, mode="2D", tol=0.1, max_at
     else:
         raise ValueError(f"Invalid mode: {mode}. Must be '2D' or '3D'.")
 
-def compute_accel(mask):
+def computeAccel(mask):
     """
     Calculate acceleration factor from sampling mask.
     
@@ -169,7 +169,7 @@ def compute_accel(mask):
     Examples
     --------
     >>> mask = np.ones((64, 64))
-    >>> compute_accel(mask)
+    >>> computeAccel(mask)
     1.0
     """
     return np.prod(mask.shape) / np.count_nonzero(mask)

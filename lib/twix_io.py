@@ -9,16 +9,18 @@ Date: 11/26/2025
 Dependencies: numpy
 
 Quick Start:
-    data = read_twix_siemens_XA('measurement.dat', nviews=128)
-    ksp = read_twix_from_cartesian_mask('measurement.dat', mask, n_prep=100)
+    data = readSiemensXA('measurement.dat', nviews=128)
+    ksp = readFromCartesianMask('measurement.dat', mask, n_prep=100)
 """
 import numpy as np
-from lib.st_interface import get_pe_idxs_from_mask
+from lib.st_interface import getPeIdxsFromMask
 
-# TODO: add a safety check to see if there are any additional ADCs that were acquired that we did not read in
-def read_twix_siemens_XA(datfile, nviews):
+def readSiemensXA(datfile, nviews):
     """
     Read Siemens TWIX .dat file (XA format) for k-space data.
+    
+    Parses binary TWIX file format, skips PMUDATA blocks, and extracts
+    multi-channel k-space data with progress reporting.
     
     Parameters
     ----------
@@ -36,6 +38,8 @@ def read_twix_siemens_XA(datfile, nviews):
     -----
     Skips PMUDATA blocks and extracts imaging data from XA30 format.
     Handles interleaved real/imaginary data conversion.
+    
+    TODO: Add safety check for additional ADCs acquired but not read.
     """
     with open(datfile, "rb") as f:
         # Skip header and calculate measurement length
@@ -141,7 +145,7 @@ def read_twix_siemens_XA(datfile, nviews):
     return data
 
 
-def read_twix_from_cartesian_mask(datfile, mask, n_prep, mode='2D'):
+def readFromCartesianMask(datfile, mask, n_prep, mode='2D'):
     """
     Read TWIX data using Cartesian undersampling mask.
     
@@ -175,12 +179,12 @@ def read_twix_from_cartesian_mask(datfile, mask, n_prep, mode='2D'):
     Handles SequenceTree to Python index conversion.
     """
     if mode == '2D':
-        pe_idxs = get_pe_idxs_from_mask(mask, mode=mode)
+        pe_idxs = getPeIdxsFromMask(mask, mode=mode)
 
         # Read raw data from TWIX
         n_lines_acquired = len(pe_idxs) + n_prep
 
-        data = read_twix_siemens_XA(datfile, n_lines_acquired)
+        data = readSiemensXA(datfile, n_lines_acquired)
         data = data[:,n_prep:,:]
 
         n_ro = data.shape[0]
@@ -198,7 +202,7 @@ def read_twix_from_cartesian_mask(datfile, mask, n_prep, mode='2D'):
         return ksp
 
     elif mode == '3D':
-        pe_idxs_flat = get_pe_idxs_from_mask(mask, mode=mode)
+        pe_idxs_flat = getPeIdxsFromMask(mask, mode=mode)
 
         n_y = mask.shape[0]
         n_z = mask.shape[1]
@@ -213,7 +217,7 @@ def read_twix_from_cartesian_mask(datfile, mask, n_prep, mode='2D'):
 
         # Read raw data from TWIX
         n_lines_acquired = np.count_nonzero(mask) + n_prep
-        data = read_twix_siemens_XA(datfile, n_lines_acquired)
+        data = readSiemensXA(datfile, n_lines_acquired)
         data = data[:,n_prep:,:]
 
         n_ro = data.shape[0]

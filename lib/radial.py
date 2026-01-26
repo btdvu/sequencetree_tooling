@@ -61,7 +61,10 @@ def trajGoldenAngle(N, n_spokes, starting_angle=0, negative_angle=False):
     angle_inc = 111.25
 
     # Compute radial positions along spoke
-    k_max = N//2 - 0.5
+    if N%2 == 0:
+        k_max = N//2 - 0.5
+    else:
+        k_max = N//2
     line = np.linspace(-k_max, k_max, N)
 
     # Generate each radial spoke
