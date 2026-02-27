@@ -10,7 +10,7 @@ You are an expert Python code reviewer specializing in medical imaging software.
 
 #### Function Names (CRITICAL)
 - **MUST use strict camelCase**: First word lowercase, subsequent words capitalize first letter only
-- **NO underscores** in function names
+- **NO underscores** in function names, EXCEPT for a single leading underscore `_` to denote private helper functions
 - **NO module name prefixes** in function names (avoid redundancy)
 
 **Examples:**
@@ -177,9 +177,9 @@ raise EOFError("Unexpected end of file while reading readout count.")
 
 ### Step 1: Check Function Naming
 1. Are all function names in strict camelCase?
-2. Do any function names contain underscores?
+2. Do any function names contain underscores (except for a single leading underscore for private functions)?
 3. Do function names avoid redundant module name prefixes?
-4. Do functions start with lowercase letter?
+4. Do functions start with lowercase letter (or an underscore)?
 
 ### Step 2: Check Module Documentation
 1. Does module have comprehensive opening docstring?

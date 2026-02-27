@@ -47,7 +47,7 @@ Quick Start:
 
 - **First word**: lowercase
 - **Subsequent words**: capitalize first letter only
-- **NO underscores** in function names
+- **NO underscores** in function names, EXCEPT for a single leading underscore `_` for private helper functions
 - **NO module name prefixes** in function names
 
 **Correct Examples:**
@@ -115,11 +115,11 @@ def readSiemensXA(datfile, nviews):  # ✅ No redundancy
 
 Before committing code, verify:
 
-1. ✅ All function names use strict camelCase (no underscores)
+1. ✅ All function names use strict camelCase (no underscores, except leading `_` for private functions)
 2. ✅ Function names do NOT contain the module name
 3. ✅ Module filenames use snake_case
 4. ✅ All function arguments use snake_case
-5. ✅ Function names start with lowercase letter
+5. ✅ Function names start with lowercase letter (or `_`)
 
 ## Function Docstrings
 

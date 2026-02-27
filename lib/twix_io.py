@@ -14,6 +14,7 @@ Quick Start:
 """
 import numpy as np
 from lib.st_interface import getPeIdxsFromMask
+import twixtools
 
 def readSiemensXA(datfile, nviews):
     """
@@ -31,7 +32,7 @@ def readSiemensXA(datfile, nviews):
     
     Returns
     -------
-    np.ndarray
+    data : np.ndarray
         Complex k-space data shape: (num_readouts, nviews, num_channels).
     
     Notes
@@ -44,22 +45,22 @@ def readSiemensXA(datfile, nviews):
     with open(datfile, "rb") as f:
         # Skip header and calculate measurement length
         _ = np.fromfile(f, dtype=np.uint32, count=1)
-        nMeas = int(np.fromfile(f, dtype=np.uint32, count=1)[0])
+        n_meas = int(np.fromfile(f, dtype=np.uint32, count=1)[0])
 
-        measLen = 0
+        meas_len = 0
 
         # Calculate total measurement length from all measurements except last
-        for _ in range(nMeas - 1):
+        for _ in range(n_meas - 1):
             f.seek(16, 1)
             tmp = int(np.fromfile(f, dtype=np.uint64, count=1)[0])
-            measLen = measLen + int(np.ceil(tmp / 512.0) * 512)
+            meas_len = meas_len + int(np.ceil(tmp / 512.0) * 512)
             f.seek(152 - 24, 1)
 
         # Seek to data section and read header
-        offset = 2 * 4 + 152 * 64 + 126 * 4 + measLen
+        offset = 2 * 4 + 152 * 64 + 126 * 4 + meas_len
         f.seek(offset, 0)
-        headerSize = int(np.fromfile(f, dtype=np.uint32, count=1)[0])
-        _ = np.fromfile(f, dtype=np.uint8, count=headerSize - 4)
+        header_size = int(np.fromfile(f, dtype=np.uint32, count=1)[0])
+        _ = np.fromfile(f, dtype=np.uint8, count=header_size - 4)
 
         # Skip PMUDATA blocks and find first imaging data
         num_readouts = 0
@@ -75,13 +76,13 @@ def readSiemensXA(datfile, nviews):
             if num_readouts == 0:
                 # Skip PMUDATA block
                 f.seek(-50, 1)
-                ulDMALength = 184
-                mdhStart = -ulDMALength
-                data_u8 = np.fromfile(f, dtype=np.uint8, count=ulDMALength)
-                data_u8 = data_u8[mdhStart:]
+                ul_dma_length = 184
+                mdh_start = -ul_dma_length
+                data_u8 = np.fromfile(f, dtype=np.uint8, count=ul_dma_length)
+                data_u8 = data_u8[mdh_start:]
                 data_u8[3] = (data_u8[3] & 1)
-                ulDMALength = int(np.frombuffer(data_u8[0:4].tobytes(), dtype=np.uint32)[0])
-                _ = np.fromfile(f, dtype=np.uint8, count=ulDMALength - 184)
+                ul_dma_length = int(np.frombuffer(data_u8[0:4].tobytes(), dtype=np.uint32)[0])
+                _ = np.fromfile(f, dtype=np.uint8, count=ul_dma_length - 184)
                 cnt += 1
 
         # Get number of channels and prepare data array
@@ -92,11 +93,11 @@ def readSiemensXA(datfile, nviews):
         data = np.zeros((num_readouts, nviews, num_channels), dtype=np.complex64)
 
         # Read k-space data for all phase encoding lines
-        iPE = 0
-        percentFinished = 0
+        i_pe = 0
+        percent_finished = 0
 
         while True:
-            iPE += 1
+            i_pe += 1
 
             # Read header for current phase encoding line
             _ = np.fromfile(f, dtype=np.uint8, count=48)
@@ -108,21 +109,21 @@ def readSiemensXA(datfile, nviews):
             if num_readouts_now == 0:
                 # Skip PMUDATA block
                 f.seek(-50, 1)
-                ulDMALength = 184
-                mdhStart = -ulDMALength
-                data_u8 = np.fromfile(f, dtype=np.uint8, count=ulDMALength)
-                data_u8 = data_u8[mdhStart:]
+                ul_dma_length = 184
+                mdh_start = -ul_dma_length
+                data_u8 = np.fromfile(f, dtype=np.uint8, count=ul_dma_length)
+                data_u8 = data_u8[mdh_start:]
                 data_u8[3] = (data_u8[3] & 1)
-                ulDMALength = int(np.frombuffer(data_u8[0:4].tobytes(), dtype=np.uint32)[0])
-                _ = np.fromfile(f, dtype=np.uint8, count=ulDMALength - 184)
-                iPE -= 1
+                ul_dma_length = int(np.frombuffer(data_u8[0:4].tobytes(), dtype=np.uint32)[0])
+                _ = np.fromfile(f, dtype=np.uint8, count=ul_dma_length - 184)
+                i_pe -= 1
                 continue
 
             # Skip remaining header bytes
             _ = np.fromfile(f, dtype=np.uint8, count=192 - 50)
 
             # Read data for each channel
-            for iCh in range(num_channels):
+            for i_ch in range(num_channels):
                 _ = np.fromfile(f, dtype=np.uint8, count=32)
                 tmp = np.fromfile(f, dtype=np.float32, count=num_readouts_now * 2)
                 
@@ -131,15 +132,15 @@ def readSiemensXA(datfile, nviews):
                 imag_part = tmp[1::2]
                 tmp_complex = real_part + 1j * imag_part
                 
-                data[:num_readouts_now, iPE - 1, iCh] = tmp_complex
+                data[:num_readouts_now, i_pe - 1, i_ch] = tmp_complex
 
             # Update progress indicator
-            new_percent = int((100 * iPE) / nviews)
-            if new_percent > percentFinished + 9:
-                percentFinished = new_percent
-                print(f"{percentFinished:3d} %")
+            new_percent = int((100 * i_pe) / nviews)
+            if new_percent > percent_finished + 9:
+                percent_finished = new_percent
+                print(f"{percent_finished:3d} %")
 
-            if iPE == nviews:
+            if i_pe == nviews:
                 break
 
     return data
@@ -234,3 +235,31 @@ def readFromCartesianMask(datfile, mask, n_prep, mode='2D'):
 
     else:
         raise ValueError(f"Invalid mode: {mode}. Must be '2D' or '3D'.")
+
+
+def getFOVTransformation(datfile):
+    """
+    Reads in a Siemens .twix raw data file and gets the FOV transform for that acquisition.
+    
+    Parameters
+    ----------
+    datfile : str
+        Path to the Siemens TWIX .dat file.
+        
+    Returns
+    -------
+    dict
+        Dictionary containing 'normal', 'offset', and 'inplane_rot' transformation parameters.
+    """
+    twix_file = twixtools.read_twix(datfile, parse_prot=True, parse_data=True, parse_pmu=False, parse_geometry=True)
+
+    # get normal, offset, and rotation parameters of acquisition
+    normal = np.array(twix_file[-1]['geometry'][0].normal)
+    offset = np.array(twix_file[-1]['geometry'][0].offset)
+    inplane_rot = twix_file[-1]['geometry'][0].inplane_rot
+
+    return {
+        "normal": normal,
+        "offset": offset,
+        "inplane_rot": inplane_rot 
+    }
