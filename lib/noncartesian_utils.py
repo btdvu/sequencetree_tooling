@@ -144,6 +144,15 @@ def _imagingPlaneAxes(transform):
 
     # Get the angle of rotation and rotation axis between starting and new normal vectors.
     angle_of_rotation = np.arccos(np.dot(z, z_prime))
+
+    # Case where the imaging plane is one of the major anatomical planes.
+    if np.abs(angle_of_rotation) < 1E-6:
+        return {
+            "x_prime": x,
+            "y_prime": y,
+            "z_prime": z 
+        }
+
     rotation_axis = np.cross(z, z_prime)
     rotation_axis = rotation_axis/np.linalg.norm(rotation_axis)
 
