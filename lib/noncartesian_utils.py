@@ -126,18 +126,22 @@ def _imagingPlaneAxes(transform):
     idx_largest_component = np.argmax(np.abs(normal))
 
     # Anatomical frame (axial, sagittal, coronal) unit vectors.
-    if idx_largest_component == 2:
+    # These starting axes found empirically.
+    if idx_largest_component == 2: 
+        # axial
         z = np.array([0,0,1])
         x = np.array([1,0,0])
         y = np.array([0,1,0])
     elif idx_largest_component == 1:
+        # coronal
         z = np.array([0,1,0])
         x = np.array([0,0,1])
         y = np.array([1,0,0])
-    else:
+    else: 
+        # sagittal
         z = np.array([1,0,0])
-        x = np.array([0,1,0])
-        y = np.array([0,0,1])
+        x = np.array([0,0,-1])
+        y = np.array([0,1,0])
 
     # z' is simply the unit normal vector.
     z_prime = normal/np.linalg.norm(normal)

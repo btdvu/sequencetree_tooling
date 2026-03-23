@@ -18,8 +18,9 @@ Quick Start:
 import numpy as np
 import lib.radial
 import sigpy as sp
+import lib.noncartesian_utils
 
-def estGradDelay(ksp_calib, N_plat, N_ramp, shape_i):
+def estGradDelay(ksp_calib, N_plat, N_ramp, shape_i, fov_shift=None):
     """
     Estimate gradient delays from ramp-sampled calibration data.
     
@@ -56,6 +57,10 @@ def estGradDelay(ksp_calib, N_plat, N_ramp, shape_i):
     
     # Get the unscaled trajectory of the calibration data
     coord_plat = lib.radial.trajCalibration(N_plat, n_calibPairs)
+
+    # Perform FOV shift on the k-space calibration data prior to estimating the shift matrix
+    if fov_shift is not None:
+        ksp_plat = lib.noncartesian_utils.shiftFieldOfView(ksp_plat, coord_plat, fov_shift)
 
     # Estimate the unscaled shift matrix
     shift_matrix_unscaled = lib.radial.estGradDelayMultiCh(ksp_plat, coord_plat)
