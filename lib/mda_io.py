@@ -16,6 +16,7 @@ Quick Start:
 import os
 import sys
 import numpy as np
+import pickle
 
 def readmda(fname, folder=os.getcwd(), dtype=np.double):
     """
@@ -155,3 +156,40 @@ def writemda(fname, mat):
             fid.write(mat_imag[iter_element].tobytes())
     fid.close()
     return
+
+def readVar(fname):
+    """
+    Read a Python variable from a .pkl file.
+    
+    Parameters
+    ----------
+    fname : str
+        File name (or file path) of the .pkl file.
+        
+    Returns
+    -------
+    var : any
+        Python variable saved as .pkl file.
+    """
+    with open(fname, 'rb') as file:
+        var = pickle.load(file)
+    return var
+
+
+def writeVar(fname, var):
+    """
+    Write a Python variable to a .pkl file.
+    
+    Parameters
+    ----------
+    fname : str
+        File name (or file path) of the .pkl file.
+    var : any
+        Python variable to be written.
+        
+    Returns
+    -------
+    None
+    """
+    with open(fname, 'wb') as file:
+        pickle.dump(var, file)
