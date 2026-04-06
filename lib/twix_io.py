@@ -14,7 +14,7 @@ Quick Start:
 """
 import numpy as np
 from lib.st_interface import getPeIdxsFromMask
-import twixtools
+import lib.twixtools
 
 def readSiemensXA(datfile, nviews):
     """
@@ -251,7 +251,7 @@ def getFOVTransformation(datfile):
     dict
         Dictionary containing 'normal', 'offset', and 'inplane_rot' transformation parameters.
     """
-    twix_file = twixtools.read_twix(datfile, parse_prot=True, parse_data=True, parse_pmu=False, parse_geometry=True)
+    twix_file = lib.twixtools.read_twix(datfile, parse_prot=True, parse_data=True, parse_pmu=False, parse_geometry=True)
 
     # get normal, offset, and rotation parameters of acquisition
     normal = np.array(twix_file[-1]['geometry'][0].normal)
@@ -263,3 +263,37 @@ def getFOVTransformation(datfile):
         "offset": offset,
         "inplane_rot": inplane_rot 
     }
+
+
+# TODO: [MRI Reference] Add a citation or reference to the Siemens IDEA raw data (Twix) formatting convention.
+def readImageData(filename):
+    """
+    Parses Siemens twix (.dat) raw files to extract all image-encoding ADC readouts.
+    
+    Siemens raw data is structured as a sequential stream of Measurement Data Blocks (MDBs).
+    Each MDB contains a Measurement Data Header (MDH) detailing the k-space counters 
+    (e.g., line, partition, slice) and the actual multi-channel ADC readout data. This function 
+    filters out calibration or noise scans and exclusively aggregates the physical image-encoding 
+    MDBs into a stacked array.
+    
+    Parameters
+    ----------
+    filename : str
+        Path to the Siemens twix (.dat) file.
+        
+    Returns
+    -------
+    data_stream : np.ndarray
+        Raw multi-channel k-space readouts aggregated across chronological acquisition blocks.
+        shape: (n_readouts, n_channels, n_samples)
+    """
+    data_stream = list()
+    
+    # Parse the twix file and retrieve the MDB stream from the final sequence acquisition ([-1])
+    for mdb in lib.twixtools.read_twix(filename, parse_pmu=False)[-1]['mdb']:
+        
+        # Filter for structurally relevant imaging readouts (ignore noise, RT feedback, etc.)
+        if mdb.is_image_scan():
+            data_stream.append(mdb.data)
+            
+    return np.asarray(data_stream)
