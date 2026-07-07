@@ -27,7 +27,7 @@ from lib.girf.STArbGradient import STArbGradient
 
 # TODO: [MRI Reference] Consider formalizing the citation to "Bernstein, M. A., King, K. F., & Zhou, X. J. Handbook of MRI pulse sequences. Elsevier, 2004 (Section 17.6)" and related foundational papers (e.g., Glover 1999) on spiral k-space trajectory design.
 
-def traj(n_shots, matrix_size, maxamp, ramprate, ramp_time_1, ramp_time_2, fov_xy, dwell_time, gamma=42.5764, girf=None):
+def traj(n_shots, matrix_size, maxamp, ramprate, ramp_time_1, ramp_time_2, fov_xy, dwell_time, gamma=42.5764, girf=None, transform=None):
     """
     Generates a multi-shot Archimedean spiral k-space trajectory.
     
@@ -58,6 +58,9 @@ def traj(n_shots, matrix_size, maxamp, ramprate, ramp_time_1, ramp_time_2, fov_x
     girf : dict, optional
         Gradient impulse response function for predictive correction, 
         sampled on a 1 us increment. Default: None.
+    transform : dict, optional
+        FOV transform parameters provided by the scanner 
+        (expected keys: 'normal', 'offset', 'inplane_rot'). Default: None.
         
     Returns
     -------
@@ -72,7 +75,7 @@ def traj(n_shots, matrix_size, maxamp, ramprate, ramp_time_1, ramp_time_2, fov_x
     spiral_gradients = []
     for shot_angle in shot_angles:
         tmp_grad = STSpiralGradient(shot_angle, n_shots, matrix_size, maxamp, ramprate, ramp_time_1, ramp_time_2, fov_xy, 
-                                    dwell_time, gamma=gamma, girf=girf)
+                                    dwell_time, gamma=gamma, girf=girf, transform=transform)
         spiral_gradients.append(tmp_grad)
         del tmp_grad
 
@@ -107,6 +110,7 @@ class STSpiralGradient(STArbGradient):
             kspace_offset=np.array([0, 0, 0]),
             gamma=42.5764,
             girf=None,
+            transform=None,
     ):
         """
         Initializes an STSpiralGradient instance for a single shot.
@@ -137,6 +141,9 @@ class STSpiralGradient(STArbGradient):
             Gyromagnetic ratio. Default: 42.5764.
         girf : dict, optional
             GIRF convolution dictionary for system hardware predictions. Default: None.
+        transform : dict, optional
+            FOV transform parameters provided by the scanner 
+            (expected keys: 'normal', 'offset', 'inplane_rot'). Default: None.
         """
         self.shot_angle = shot_angle
         self.n_shots = n_shots
@@ -152,7 +159,7 @@ class STSpiralGradient(STArbGradient):
         self._intermediateParams()
 
         super().__init__(ramp_time_1, self.plateau_time, ramp_time_2, self.readout_duration, fov, dwell_time,
-                         kspace_offset=kspace_offset, gamma=gamma, girf=girf)
+                         kspace_offset=kspace_offset, gamma=gamma, girf=girf, transform=transform)
 
     def _intermediateParams(self):
         """

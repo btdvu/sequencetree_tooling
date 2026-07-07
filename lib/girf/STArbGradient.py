@@ -19,6 +19,7 @@ Quick Start:
 import numpy as np
 import lib.girf.gradient_util as gu
 import lib.girf.thin_slice_method as tsm
+import lib.noncartesian_utils as ncu
 
 # TODO: [MRI Reference] Consider citing literature regarding analytical gradient design or SequenceTree implementation.
 
@@ -42,6 +43,7 @@ class STArbGradient(object):
             kspace_offset=np.array([0,0,0]),
             gamma=42.5764,
             girf=None,
+            transform=None,
     ):
         """
         Initializes the STArbGradient.
@@ -67,6 +69,9 @@ class STArbGradient(object):
         girf : dict, optional
             Gradient impulse response function for predictive correction, 
             sampled on a 1 us increment. Default: None.
+        transform : dict, optional
+            FOV transform parameters provided by the scanner 
+            (expected keys: 'normal', 'offset', 'inplane_rot'). Default: None.
         """
         self.ramp_time_1 = ramp_time_1
         self.plateau_time = plateau_time
@@ -77,6 +82,7 @@ class STArbGradient(object):
         self.kspace_offset = kspace_offset
         self.gamma = gamma
         self.girf = girf
+        self.transform = transform
 
         self._prepare()
         self._peakAmp()
@@ -146,7 +152,7 @@ class STArbGradient(object):
         # Magnetic Resonance in Medicine, 68(1), 120–129. https://doi.org/10.1002/mrm.23217
         # Convolve physical GIRF predictions on the 1 us waveform to capture hardware distortions
         if self.girf is not None:
-            self.amp_1us = self._correctAmp(self.girf, self.amp_1us)
+            self._correctAmp()
 
 
         # Integrate the gradient array to yield cumulative k-space gradient moments
@@ -249,33 +255,49 @@ class STArbGradient(object):
         initial_amplitude = (self._momentAt(10/self.plateau_time) - self._momentAt(0)) / 10
         return initial_amplitude * self.ramp_time_1 / 2
 
-    def _correctAmp(self, girf, amp):
+    def _correctAmp(self):
         """
         Applies system measured GIRFs to predict actual realized gradient outputs.
         
         The gradient impulse response function (GIRF), measured through the thin-slice algorithm,
         contains measured characterizations of system delays and eddy current dynamics. The effective gradient 
         waveform is estimated by a convolution of the programmed gradient waveform with the GIRF kernel.
-        
-        Parameters
-        ----------
-        girf : dict
-            GIRF function parameters.
-        amp : np.ndarray
-            Ideally programmed gradient amplitudes. shape: (3, n_samples)
-            
-        Returns
-        -------
-        newamp : np.ndarray
-            Realistic gradient amplitudes distorted by system imperfections.
         """
-        newamp = np.copy(amp)
-        # Compute true gradient output by convolving against each physical axis impulse response
-        # TODO: implement a rotation of the FOV before GIRF correction
+        amp_10us = np.copy(self.amp)
+        
+        # Transform gradient amplitudes to lab frame
+        imaging_plane_axes = ncu._imagingPlaneAxes(self.transform)
+        amp_in_lab_frame = ncu._transformToLabAxes(amp_10us, imaging_plane_axes)
+
+        newamp = np.copy(self.amp_1us)
+        # Apply GIRF correction in lab frame
         axes = ['x', 'y', 'z']
         for i_axis, axis in enumerate(axes):
-            newamp[i_axis] = tsm.predictedWaveforms(self.amp[i_axis], girf)[axis]
-        return newamp
+            newamp[i_axis] = tsm.predictedWaveforms(amp_in_lab_frame[i_axis], self.girf)[axis]
+        
+        # Transform corrected gradient amplitudes to imaging plane
+        newamp_imaging_plane = ncu._transformToImagingPlaneAxes(newamp, imaging_plane_axes)
+
+        self.amp_1us = newamp_imaging_plane
+
+
+        
+        
+        # newamp = np.copy(amp)
+        # # Compute true gradient output by convolving against each physical axis impulse response
+        # # TODO: implement a rotation of the FOV before GIRF correction
+
+        # print("Compute transform back to lab coordinates")
+        # # Transform gradient amplitudes to lab frame
+        # imaging_plane_axes = ncu._imagingPlaneAxes(self.transform)
+        # amp_in_lab_frame = ncu._transformToLabAxes(amp, imaging_plane_axes)
+
+        # # Apply GIRF correction in lab frame
+        # axes = ['x', 'y', 'z']
+        # for i_axis, axis in enumerate(axes):
+        #     newamp[i_axis] = tsm.predictedWaveforms(self.amp[i_axis], girf)[axis]
+            
+        # return newamp
 
     def _rounduptime(self, t):
         """Ceiling division mapping durations to the 10us system clock raster."""
@@ -283,86 +305,86 @@ class STArbGradient(object):
 
 
 # TODO: [MRI Reference] Add citation here for sequence techniques implementing circular EPI / Rosette.
-class STCircleGradient(STArbGradient):
-    """
-    STArbGradient subtype simulating SequenceTree's circular or complex gradient trajectories.
-    """
+# class STCircleGradient(STArbGradient):
+#     """
+#     STArbGradient subtype simulating SequenceTree's circular or complex gradient trajectories.
+#     """
 
-    def __init__(
-            self,
-            kspace_radius_1,
-            kspace_radius_2,
-            num_cycles,
-            kspace_direction_1,
-            kspace_direction_2,
-            ramp_time_1,
-            plateau_time,
-            ramp_time_2,
-            fov,
-            dwell_time,
-            kspace_offset=np.array([0, 0, 0]),
-            gamma=42.5764,
-    ):
-        """
-        Initializes an STCircleGradient instance.
+#     def __init__(
+#             self,
+#             kspace_radius_1,
+#             kspace_radius_2,
+#             num_cycles,
+#             kspace_direction_1,
+#             kspace_direction_2,
+#             ramp_time_1,
+#             plateau_time,
+#             ramp_time_2,
+#             fov,
+#             dwell_time,
+#             kspace_offset=np.array([0, 0, 0]),
+#             gamma=42.5764,
+#     ):
+#         """
+#         Initializes an STCircleGradient instance.
         
-        Parameters
-        ----------
-        kspace_radius_1 : float
-            Primary circular radius target in k-space.
-        kspace_radius_2 : float
-            Secondary perpendicular radius target in k-space.
-        num_cycles : int
-            Rotational cycles traversed during reading duration.
-        kspace_direction_1 : np.ndarray
-            Primary geometric orientation vector array [x,y,z].
-        kspace_direction_2 : np.ndarray
-            Secondary geometric orientation vector array [x,y,z].
-        ramp_time_1 : int
-            First ramp time in us.
-        plateau_time : int
-            Plateau/readout duration in us.
-        ramp_time_2 : int
-            Second ramp time in us.
-        fov : list or np.ndarray
-            Field-of-view in mm.
-        dwell_time : float
-            ADC dwell time step.
-        kspace_offset : np.ndarray, optional
-            A translation coordinate in k-space [x,y,z]. Default: [0,0,0].
-        gamma : float, optional
-            Gyromagnetic ratio. Default: 42.5764.
-        """
-        self.kspace_radius_1 = kspace_radius_1
-        self.kspace_radius_2 = kspace_radius_2
-        self.num_cycles = num_cycles
-        self.kspace_direction_1 = kspace_direction_1
-        self.kspace_direction_2 = kspace_direction_2
-        super().__init__(ramp_time_1, plateau_time, ramp_time_2, fov, dwell_time, kspace_offset=kspace_offset, gamma=gamma)
+#         Parameters
+#         ----------
+#         kspace_radius_1 : float
+#             Primary circular radius target in k-space.
+#         kspace_radius_2 : float
+#             Secondary perpendicular radius target in k-space.
+#         num_cycles : int
+#             Rotational cycles traversed during reading duration.
+#         kspace_direction_1 : np.ndarray
+#             Primary geometric orientation vector array [x,y,z].
+#         kspace_direction_2 : np.ndarray
+#             Secondary geometric orientation vector array [x,y,z].
+#         ramp_time_1 : int
+#             First ramp time in us.
+#         plateau_time : int
+#             Plateau/readout duration in us.
+#         ramp_time_2 : int
+#             Second ramp time in us.
+#         fov : list or np.ndarray
+#             Field-of-view in mm.
+#         dwell_time : float
+#             ADC dwell time step.
+#         kspace_offset : np.ndarray, optional
+#             A translation coordinate in k-space [x,y,z]. Default: [0,0,0].
+#         gamma : float, optional
+#             Gyromagnetic ratio. Default: 42.5764.
+#         """
+#         self.kspace_radius_1 = kspace_radius_1
+#         self.kspace_radius_2 = kspace_radius_2
+#         self.num_cycles = num_cycles
+#         self.kspace_direction_1 = kspace_direction_1
+#         self.kspace_direction_2 = kspace_direction_2
+#         super().__init__(ramp_time_1, plateau_time, ramp_time_2, fov, dwell_time, kspace_offset=kspace_offset, gamma=gamma)
 
 
-    def _gradientShape(self, t):
-        """
-        Defines the dynamic parametric trajectory forming mathematical circles or sinusoids.
+#     def _gradientShape(self, t):
+#         """
+#         Defines the dynamic parametric trajectory forming mathematical circles or sinusoids.
         
-        Parameters
-        ----------
-        t : float or np.ndarray
-            Parameterization timeframe (0 to 1).
+#         Parameters
+#         ----------
+#         t : float or np.ndarray
+#             Parameterization timeframe (0 to 1).
             
-        Returns
-        -------
-        kspace : np.ndarray
-            Circular Cartesian mapping vector at relative time t.
-        """
-        t2 = t * 2 * 3.141592*self.num_cycles
-        tmp_kspace_direction_1 = self.kspace_direction_1
-        tmp_kspace_direction_2 = self.kspace_direction_2
-        if not (isinstance(t, float) or isinstance(t, int)):
-            tmp_kspace_direction_1 = np.reshape(tmp_kspace_direction_1, [3] + len(t.shape)*[1])
-            tmp_kspace_direction_2 = np.reshape(tmp_kspace_direction_2, [3] + len(t.shape)*[1])
+#         Returns
+#         -------
+#         kspace : np.ndarray
+#             Circular Cartesian mapping vector at relative time t.
+#         """
+#         t2 = t * 2 * 3.141592*self.num_cycles
+#         tmp_kspace_direction_1 = self.kspace_direction_1
+#         tmp_kspace_direction_2 = self.kspace_direction_2
+#         if not (isinstance(t, float) or isinstance(t, int)):
+#             tmp_kspace_direction_1 = np.reshape(tmp_kspace_direction_1, [3] + len(t.shape)*[1])
+#             tmp_kspace_direction_2 = np.reshape(tmp_kspace_direction_2, [3] + len(t.shape)*[1])
             
-        # Modulate directional bases with sine and cosine to construct the geometric circle
-        tmp_x = tmp_kspace_direction_1*self.kspace_radius_1*np.cos(t2)
-        tmp_y = tmp_kspace_direction_2*self.kspace_radius_2*np.sin(t2)
-        return tmp_x + tmp_y
+#         # Modulate directional bases with sine and cosine to construct the geometric circle
+#         tmp_x = tmp_kspace_direction_1*self.kspace_radius_1*np.cos(t2)
+#         tmp_y = tmp_kspace_direction_2*self.kspace_radius_2*np.sin(t2)
+#         return tmp_x + tmp_y

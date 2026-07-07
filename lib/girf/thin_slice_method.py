@@ -10,6 +10,7 @@ Dependencies: numpy, sigpy
 
 import numpy as np
 import sigpy as sp
+from lib.noncartesian_utils import _rotationFromAxisAndAngle
 
 
 def centerOfMass(com_meas, fov, slice_spacing, threshold=0.05):
@@ -290,6 +291,46 @@ def computeGirf(waveform_nom, com_meas, grad_meas, seq_params, threshold=0.05, k
     return girf_out, wav_meas
 
 
+# #NOTE: This did not work for general rotations.
+# def rotateGirf(girf, transform):
+#     """
+#     Rotates an axial/lab physical frame GIRF to a rotated imaging plane coordinate system.
+    
+#     Parameters
+#     ----------
+#     girf : dict or np.ndarray
+#         Physical GIRF curves.
+#     transform : dict
+#         FOV transform parameters from the scanner header.
+#     """
+#     tmp_girf = np.stack([girf['x'], girf['y'], girf['z']])
+
+#     # get the imaging plane axes
+#     imaging_plane_axes = _girfAxes(transform)
+
+#     # TEMPORARY TEST
+#     # x_prime = np.abs(imaging_plane_axes['x_prime'])
+#     # y_prime = np.abs(imaging_plane_axes['y_prime'])
+#     # z_prime = np.abs(imaging_plane_axes['z_prime'])
+#     x_prime = imaging_plane_axes['x_prime']
+#     y_prime = imaging_plane_axes['y_prime']
+#     z_prime = imaging_plane_axes['z_prime']
+
+
+#     imaging_plane_axes_matrix = np.stack([x_prime, y_prime, z_prime])
+
+#     # compute the new GIRF within the imaging plane
+#     imaging_plane_girf = imaging_plane_axes_matrix @ tmp_girf
+
+
+#     imaging_plane_girf = {
+#         'x': imaging_plane_girf[0],
+#         'y': imaging_plane_girf[1],
+#         'z': imaging_plane_girf[2]
+#     }
+#     return imaging_plane_girf
+
+
 def predictedWaveforms(waveform_nom, girf_dict):
     """
     Predicts the true gradient waveforms along each axis using the gradient impulse response function.
@@ -336,3 +377,84 @@ def predictedWaveforms(waveform_nom, girf_dict):
         del tmp_k, tmp_r, tmp_wav_pred
 
     return waveform_pred
+
+
+# def _girfAxes(transform):
+#     """
+#     Get the unit vectors of the coordinate system in the imaging plane (x', y', and z').
+#     This is for rotating the GIRF when applying gradient imperfection correction.
+#     NOTE: The axes for the GIRF are slightly different for sagittal imaging than for the imaging plane axes.
+    
+#     Parameters
+#     ----------
+#     transform : dict
+#         FOV transform parameters provided by the scanner.
+        
+#     Returns
+#     -------
+#     dict
+#         Dictionary containing 'x_prime', 'y_prime', and 'z_prime' unit vectors.
+#     """
+#     normal = transform['normal']
+#     offset = transform['offset']
+#     inplane_rot = transform['inplane_rot']
+
+#     # Determine the anatomical plane that our FOV rotation is derived from.
+#     # TODO: We think it is determined by the most dominant vector component in our normal vector.
+#     # For example, if the largest component in 'normal' is in the z direction, the FOV rotation is derived from the axial plane.
+#     # If the largest component in 'normal' is in y, the FOV rotation is derived from the coronal plane.
+#     # And if the largest component in 'normal' is in x, the FOV rotation is derived from the sagittal plane.
+#     # Need to validate this with more 2D experiments.
+#     # Set the lab frame x, y, and z directions based on the index of the largest vector component in 'normal'.
+#     idx_largest_component = np.argmax(np.abs(normal))
+
+#     # Anatomical frame (axial, sagittal, coronal) unit vectors.
+#     # These starting axes found empirically.
+#     if idx_largest_component == 2: 
+#         # axial
+#         z = np.array([0,0,1])
+#         x = np.array([1,0,0])
+#         y = np.array([0,1,0])
+#     elif idx_largest_component == 1:
+#         # coronal
+#         z = np.array([0,1,0])
+#         x = np.array([0,0,1])
+#         y = np.array([1,0,0])
+#     else: 
+#         # sagittal
+#         z = np.array([1,0,0])
+#         x = np.array([0,0,1])
+#         y = np.array([0,1,0])
+       
+#     # z' is simply the unit normal vector.
+#     z_prime = normal/np.linalg.norm(normal)
+
+#     # Get the angle of rotation and rotation axis between starting and new normal vectors.
+#     angle_of_rotation = np.arccos(np.dot(z, z_prime))
+
+#     # Case where the imaging plane is one of the major anatomical planes.
+#     if np.abs(angle_of_rotation) < 1E-6:
+#         return {
+#             "x_prime": x,
+#             "y_prime": y,
+#             "z_prime": z 
+#         }
+
+#     rotation_axis = np.cross(z, z_prime)
+#     rotation_axis = rotation_axis/np.linalg.norm(rotation_axis)
+
+#     # Get the rotation matrix that rotates the starting normal to the new normal.
+#     rot_matrix = _rotationFromAxisAndAngle(rotation_axis, angle_of_rotation)
+#     tmp_x_prime = rot_matrix @ x
+#     tmp_y_prime = rot_matrix @ y
+
+#     # Apply the in-plane rotation.
+#     in_plane_rot_matrix = _rotationFromAxisAndAngle(z_prime, -inplane_rot)
+#     x_prime = in_plane_rot_matrix @ tmp_x_prime
+#     y_prime = in_plane_rot_matrix @ tmp_y_prime
+
+#     return {
+#         "x_prime": x_prime,
+#         "y_prime": y_prime,
+#         "z_prime": z_prime 
+#     }

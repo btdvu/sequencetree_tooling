@@ -19,7 +19,7 @@ import sigpy as sp
 # TODO: Rigorous testing of shifts and rotations with SequenceTree sequences.
 # TODO: Also test multiple non-Cartesian trajectories with non-constant readout gradient amplitude sampling. (e.g. spiral, ramp-sampled radial, EPI)
 # TODO: Determine whether FOV shifting needs to be done before or after gradient delay estimation. I think before, but am not sure until you try.
-def shiftFieldOfView(ksp, coord, shift, img_shape=None):
+def shiftFieldOfView(ksp, coord, transform, voxel_size, img_shape=None):
     """
     Compute phase adjustment to the k-space data based on the coordinates and the computed image offset (in pixels).
     
@@ -29,8 +29,10 @@ def shiftFieldOfView(ksp, coord, shift, img_shape=None):
         K-space data.
     coord : np.ndarray
         Coordinates corresponding to the k-space data.
-    shift : array_like
-        Desired shift in pixels.
+    transform : dict
+        FOV transform parameters provided by the scanner (expected keys: 'normal', 'offset', 'inplane_rot').
+    voxel_size : array_like, optional
+        Size of the voxels. Converts the offset in mm to number of pixels.
     img_shape : tuple or list, optional
         Shape of the image. Default: None (estimated from coord).
         
@@ -39,6 +41,10 @@ def shiftFieldOfView(ksp, coord, shift, img_shape=None):
     ksp_adjusted : np.ndarray
         Phase-adjusted k-space data.
     """
+    shift = offsetInImagingPlane(transform, voxel_size=voxel_size)
+    if coord.shape[-1] == 2:
+        shift = shift[:2]
+
     if img_shape is None:
         img_shape = sp.estimate_shape(coord)
     elif coord.shape[-1] != len(img_shape):
@@ -61,7 +67,55 @@ def shiftFieldOfView(ksp, coord, shift, img_shape=None):
 
     ksp_adjusted = ksp*adjustment
 
-    return ksp_adjusted    
+    return ksp_adjusted   
+
+
+# # TODO: Rigorous testing of shifts and rotations with SequenceTree sequences.
+# # TODO: Also test multiple non-Cartesian trajectories with non-constant readout gradient amplitude sampling. (e.g. spiral, ramp-sampled radial, EPI)
+# # TODO: Determine whether FOV shifting needs to be done before or after gradient delay estimation. I think before, but am not sure until you try.
+# def shiftFieldOfView(ksp, coord, shift, img_shape=None):
+#     """
+#     Compute phase adjustment to the k-space data based on the coordinates and the computed image offset (in pixels).
+    
+#     Parameters
+#     ----------
+#     ksp : np.ndarray
+#         K-space data.
+#     coord : np.ndarray
+#         Coordinates corresponding to the k-space data.
+#     shift : array_like
+#         Desired shift in pixels.
+#     img_shape : tuple or list, optional
+#         Shape of the image. Default: None (estimated from coord).
+        
+#     Returns
+#     -------
+#     ksp_adjusted : np.ndarray
+#         Phase-adjusted k-space data.
+#     """
+#     if img_shape is None:
+#         img_shape = sp.estimate_shape(coord)
+#     elif coord.shape[-1] != len(img_shape):
+#         raise ValueError(f"Coordinate matrix dimensions ({coord.shape[-1]}-dim) do not match image shape ({len(img_shape)}-dim)")
+#     elif coord.shape[-1] != len(shift):
+#         raise ValueError(f"Coordinate matrix dimensions ({coord.shape[-1]}-dim) do not match shift dimensions ({len(shift)}-dim)")
+
+#     # NOTE: x-dim phase adjustment needs to be multiplied by a factor of -1, based on Siemens coordinate system; found empirically
+#     modified_shift = np.zeros_like(shift)
+#     modified_shift[0] = -1*shift[0]
+#     modified_shift[1] = 1*shift[1]
+#     if len(shift) > 2:
+#         modified_shift[2] = 1*shift[2]
+
+#     phase_adjustment_per_direction = coord/img_shape * 2*np.pi * modified_shift
+    
+#     phase_adjustment = np.sum(phase_adjustment_per_direction, axis=-1)
+
+#     adjustment = np.exp(-1j*phase_6adjustment)
+
+#     ksp_adjusted = ksp*adjustment
+
+#     return ksp_adjusted    
 
 
 def offsetInImagingPlane(transform, voxel_size=None):
@@ -92,7 +146,10 @@ def offsetInImagingPlane(transform, voxel_size=None):
     offset_in_imaging_plane_coord = _transformToImagingPlaneAxes(offset, imaging_plane_axes)
 
     if voxel_size is not None:
-        offset_in_imaging_plane_coord_in_pixels = offset_in_imaging_plane_coord/np.array(voxel_size)
+        if len(voxel_size) == 2:
+            offset_in_imaging_plane_coord_in_pixels = offset_in_imaging_plane_coord[:2]/np.array(voxel_size)
+        else:
+            offset_in_imaging_plane_coord_in_pixels = offset_in_imaging_plane_coord/np.array(voxel_size)
         return offset_in_imaging_plane_coord_in_pixels
     
     return offset_in_imaging_plane_coord
@@ -142,7 +199,7 @@ def _imagingPlaneAxes(transform):
         z = np.array([1,0,0])
         x = np.array([0,0,-1])
         y = np.array([0,1,0])
-
+       
     # z' is simply the unit normal vector.
     z_prime = normal/np.linalg.norm(normal)
 
@@ -179,7 +236,7 @@ def _imagingPlaneAxes(transform):
 
 def _transformToImagingPlaneAxes(vector, imaging_plane_axes):
     """
-    Recalculates a vector's components, expressed in the lab frame coordinates, based on the coordinate system of the imaging plane.
+    Recalculates a vector's components, expressed in the lab frame coordinates, in terms of the coordinate system of the imaging plane.
     
     Parameters
     ----------
@@ -201,6 +258,32 @@ def _transformToImagingPlaneAxes(vector, imaging_plane_axes):
     transform_lab_to_imaging_plane = np.stack([x_prime, y_prime, z_prime])
 
     return transform_lab_to_imaging_plane @ vector
+
+
+def _transformToLabAxes(vector, imaging_plane_axes):
+    """
+    Recalculates a vector's components, expressed in the imaging plane coordinates, in terms of the coordinate system of the lab frame.
+
+    Parameters
+    ----------
+    vector : np.ndarray
+        Vector in imaigng plane coordinates.
+    imaging_plane_axes : dict
+        Dictionary containing 'x_prime', 'y_prime', and 'z_prime' unit vectors.
+        
+    Returns
+    -------
+    np.ndarray
+        Vector in the lab frame coordinate system.
+    """
+    x_prime = imaging_plane_axes['x_prime']
+    y_prime = imaging_plane_axes['y_prime']
+    z_prime = imaging_plane_axes['z_prime']
+
+    # Create the matrix which transforms a vector in the lab frame to one in the imaging frame.
+    transform_imaging_plane_to_lab = np.stack([x_prime, y_prime, z_prime]).T
+
+    return transform_imaging_plane_to_lab @ vector
 
 
 def _rotationFromAxisAndAngle(axis, angle):
